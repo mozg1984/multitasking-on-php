@@ -1,0 +1,17 @@
+{
+    "name": "app/multitasking",
+    "type": "project",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Khisamutdinov Radik",
+            "email": "mozg1984@gmail.com"
+        }
+    ],
+    "require": {},
+    "autoload": {
+        "psr-4": {
+            "App\\": "src"
+        }
+    }
+}

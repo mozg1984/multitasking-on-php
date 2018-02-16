@@ -1,0 +1,353 @@
+#!/usr/bin/env php
+<?php
+
+$root = dirname(__DIR__);
+
+require "{$root}/vendor/autoload.php";
+
+$process = new \App\Process();
+
+$process->addSignalHandler(SIGHUP, function () use ($process) {
+    $process->stop();
+});
+
+$process->addSignalHandler(SIGCHLD, function () use ($process) {
+    $process->handleChildProcesses();
+});
+
+$task = function ($parameters) {
+    echo "Task: order = {$parameters['order']}, flag = {$parameters['flag']}\n";
+
+    sleep(10);
+
+    $message = sprintf(
+        "This is a child process, my pid: %s, my ppid: %s\n",
+        getmypid(),
+        posix_getppid()
+    );
+
+    echo $message;
+};
+
+$task = \App\Process::bindParameters($task, ['flag' => 'RUSSIA']);
+
+$process->addTask($task, 2);
+
+/*
+First example
+
+$unixSocketServer = new UnixSocketServer('/tmp/socket.sock', true);
+
+$communicator = new Communicator($unixSocketServer);
+$communicator->setHandler(
+    function ($message) {
+        echo "Received message from client:\n";
+        var_dump($message);
+    }
+);
+
+$process->setCommunicator($communicator);
+
+$process->addSignalHandler(SIGHUP, function () use ($process) {
+    $process->stop();
+});
+
+$process->addSignalHandler(SIGCHLD, function () use ($process) {
+    $process->handleChildProcesses();
+});
+
+$process->addTask(function ($parameters) {
+    echo "Task: order = {$parameters['order']}\n";
+
+    $parameters['Communicator']->open();
+
+    $shmId = shmop_open(getmypid(), 'n', 0644, strlen($str));
+
+    while (true) {
+        sleep(1);
+
+        $message = sprintf(
+            "This is a child process, my pid: %s, my ppid: %s\n",
+            getmypid(),
+            posix_getppid()
+        );
+
+        $parameters['Communicator']->transmit($message);
+    }
+
+    $shm_id = @shmop_open($segmentId, 'a', 0644, 0)
+
+    
+
+    //SharedMemory::write(getmypid(), $message);
+    $parameters['Communicator']->transmit($message);
+    $parameters['Communicator']->close();
+
+}, ['Communicator' => new Communicator(new UnixSocketClient('/tmp/socket.sock', true))]);
+
+$process->addTask(function ($parameters) {
+    echo "Task: order = {$parameters['order']}\n";
+
+    $parameters['Communicator']->open();
+
+    sleep(15);
+
+    $message = sprintf(
+        "This is a child process, my pid: %s, my ppid: %s\n",
+        getmypid(),
+        posix_getppid()
+    );
+
+    //SharedMemory::write(getmypid(), $message);
+    $parameters['Communicator']->transmit($message);
+    $parameters['Communicator']->close();
+
+}, ['Communicator' => new Communicator(new UnixSocketClient('/tmp/socket.sock', true))]);
+
+$process->addTask(new class extends Task {
+    public function run($parameters) {
+        echo "Task: order = {$parameters['order']}\n";
+
+        $parameters['Communicator']->open();
+
+        sleep(20);
+
+        $message = sprintf(
+            "This is a child process, my pid: %s, my ppid: %s\n",
+            getmypid(),
+            posix_getppid()
+        );
+
+        //SharedMemory::write(getmypid(), $message);
+        $parameters['Communicator']->transmit($message);
+        $parameters['Communicator']->close();
+
+    }
+}, ['Communicator' => new Communicator(new UnixSocketClient('/tmp/socket.sock', true))]);
+
+$process->addTask(new class extends Task {
+    public function run($parameters) {
+        echo "Task: order = {$parameters['order']}\n";
+
+        $parameters['Communicator']->open();
+
+        sleep(10);
+
+        $message = sprintf(
+            "This is a child process, my pid: %s, my ppid: %s\n",
+            getmypid(),
+            posix_getppid()
+        );
+
+        //SharedMemory::write(getmypid(), $message);
+        $parameters['Communicator']->transmit($message);
+        $parameters['Communicator']->close();
+
+    }
+}, ['Communicator' => new Communicator(new UnixSocketClient('/tmp/socket.sock', true))]);*/
+
+
+/*
+Second example
+
+$sharedMemory = new SharedMemory(posix_getpid());
+
+$communicator = new Communicator($sharedMemory);
+$communicator->setHandler(
+    function ($message) {
+        echo "Received message from client:\n";
+        var_dump($message);
+    }
+);
+
+$process->setCommunicator($communicator);
+
+$process->addSignalHandler(SIGHUP, function () use ($process) {
+    $process->stop();
+});
+
+$process->addSignalHandler(SIGCHLD, function () use ($process) {
+    $process->handleChildProcesses();
+});
+
+$process->addTask(function ($parameters) {
+    echo "Task: order = {$parameters['order']}\n";
+
+    $parameters['Communicator']->open();
+
+    sleep(20);
+    
+    $message = json_encode([
+        "time" => time(),
+        "transmiter" => getmypid(),
+        "receiver" => posix_getppid(),
+        "message" => "This is a child process\n"
+    ]);
+
+    $parameters['Communicator']->transmit($message);    
+    $parameters['Communicator']->close();
+
+}, ['Communicator' => new Communicator($sharedMemory)]);
+
+$process->addTask(function ($parameters) {
+    echo "Task: order = {$parameters['order']}\n";
+
+    $parameters['Communicator']->open();
+
+    sleep(15);
+    
+    $message = json_encode([
+        "time" => time(),
+        "transmiter" => getmypid(),
+        "receiver" => posix_getppid(),
+        "message" => "This is a child process\n"
+    ]);
+
+    $parameters['Communicator']->transmit($message);
+    $parameters['Communicator']->close();
+
+}, ['Communicator' => new Communicator($sharedMemory)]);
+
+$process->addTask(new class extends Task {
+    public function run($parameters) {
+        echo "Task: order = {$parameters['order']}\n";
+
+        $parameters['Communicator']->open();
+
+        sleep(10);
+        
+        $message = json_encode([
+            "time" => time(),
+            "transmiter" => getmypid(),
+            "receiver" => posix_getppid(),
+            "message" => "This is a child process\n"
+        ]);
+
+        $parameters['Communicator']->transmit($message);
+        $parameters['Communicator']->close();
+    }
+}, ['Communicator' => new Communicator($sharedMemory)]);
+
+$process->addTask(new class extends Task {
+    public function run($parameters) {
+        echo "Task: order = {$parameters['order']}\n";
+
+        $parameters['Communicator']->open();
+
+        sleep(5);
+        
+        $message = json_encode([
+            "time" => time(),
+            "transmiter" => getmypid(),
+            "receiver" => posix_getppid(),
+            "message" => "This is a child process\n"
+        ]);
+
+        $parameters['Communicator']->transmit($message);
+        $parameters['Communicator']->close();
+    }
+}, ['Communicator' => new Communicator($sharedMemory)]);*/
+
+/*
+Third example
+
+$fileBuffer = new FileBuffer('/home/radik/test-string');
+
+$communicator = new Communicator($fileBuffer);
+$communicator->setHandler(
+    function ($message) {
+        echo "Received message from client:\n";
+        var_dump($message);
+    }
+);
+
+$process->setCommunicator($communicator);
+
+$process->addSignalHandler(SIGHUP, function () use ($process) {
+    $process->stop();
+});
+
+$process->addSignalHandler(SIGCHLD, function () use ($process) {
+    $process->handleChildProcesses();
+});
+
+$process->addTask(function ($parameters) {
+    echo "Task: order = {$parameters['order']}\n";
+
+    $parameters['Communicator']->open();
+
+    sleep(20);
+    
+    $message = json_encode([
+        "time" => time(),
+        "transmiter" => getmypid(),
+        "receiver" => posix_getppid(),
+        "message" => "This is a child {$parameters['order']} process\n"
+    ]);
+
+    $parameters['Communicator']->transmit($message);    
+    $parameters['Communicator']->close();
+
+}, ['Communicator' => new Communicator($fileBuffer)]);
+
+$process->addTask(function ($parameters) {
+    echo "Task: order = {$parameters['order']}\n";
+
+    $parameters['Communicator']->open();
+
+    sleep(15);
+    
+    $message = json_encode([
+        "time" => time(),
+        "transmiter" => getmypid(),
+        "receiver" => posix_getppid(),
+        "message" => "This is a child {$parameters['order']} process\n"
+    ]);
+
+    $parameters['Communicator']->transmit($message);
+    $parameters['Communicator']->close();
+
+}, ['Communicator' => new Communicator($fileBuffer)]);
+
+$process->addTask(new class extends Task {
+    public function run($parameters) {
+        echo "Task: order = {$parameters['order']}\n";
+
+        $parameters['Communicator']->open();
+
+        sleep(10);
+        
+        $message = json_encode([
+            "time" => time(),
+            "transmiter" => getmypid(),
+            "receiver" => posix_getppid(),
+            "message" => "This is a child {$parameters['order']} process\n"
+        ]);
+
+        $parameters['Communicator']->transmit($message);
+        $parameters['Communicator']->close();
+    }
+}, ['Communicator' => new Communicator($fileBuffer)]);
+
+$process->addTask(new class extends Task {
+    public function run($parameters) {
+        echo "Task: order = {$parameters['order']}\n";
+
+        $parameters['Communicator']->open();
+
+        sleep(5);
+        
+        $message = json_encode([
+            "time" => time(),
+            "transmiter" => getmypid(),
+            "receiver" => posix_getppid(),
+            "message" => "This is a child {$parameters['order']} process\n"
+        ]);
+
+        $parameters['Communicator']->transmit($message);
+        $parameters['Communicator']->close();
+    }
+}, ['Communicator' => new Communicator($fileBuffer)]);*/
+
+
+$process->start();
