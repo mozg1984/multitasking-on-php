@@ -44,6 +44,10 @@ class Process
     public function __construct(bool $isCompletable = true)
     {
         $this->isCompletable = $isCompletable;
+
+        $this->addSignalHandler(SIGHUP, [$this, "stop"]);
+
+        $this->addSignalHandler(SIGCHLD, [$this, "handleChildProcesses"]);
     }
 
     /**
