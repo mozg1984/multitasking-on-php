@@ -2,7 +2,9 @@
 
 namespace App;
 
+use App\IPC\Communicator;
 use App\Reflection\CallableReflection;
+use App\Exceptions\ProcessException;
 
 class Process
 {
@@ -32,6 +34,11 @@ class Process
     private $tasks = [];
 
     /**
+     * @var array Buffer to store messages from child processes
+     */
+    private $buffer = [];
+
+    /**
      * @static int Delay between processing of child processes (ms)
      */
     public static $DELAY = 100;
@@ -57,18 +64,16 @@ class Process
     {
         $this->isActive = true;
 
-        foreach ($this->tasks as $order => $task) {
-            $this->fork($task, $order);
-        }
-
         while (true) {
+            $this->executeTasks();
+
             if ($this->communicator) {
                 $this->communicator->receiveAndHandle();
             }
 
             $this->signalDispatch();
 
-            if (!$this->isActive && empty($this->childProcessIds)) {
+            if (!$this->isActive && !$this->hasChildProcesses()) {
                 break;
             }
 
@@ -86,6 +91,27 @@ class Process
         if ($this->communicator) {
             $this->communicator->close();
             $this->communicator = null;
+        }
+    }
+
+    private function executeTasks()
+    {
+        if (!$this->hasTasks()) {
+            return;
+        }
+
+        while ($this->hasTasks()) {
+            $task = $this->tasks[0];
+
+            if ($task['is_expecting'] && $this->hasChildProcesses()) {
+                break;
+            }
+
+            $task = array_shift($this->tasks);
+
+            for ($i = 0; $i < $task['number_of_tasks']; $i++) {
+                $this->fork($task['task'], $i);
+            }
         }
     }
 
@@ -128,9 +154,19 @@ class Process
             }
         }
 
-        if ($this->isCompletable && empty($this->childProcessIds)) {
+        if ($this->isCompletable && !$this->hasTasks() && !$this->hasChildProcesses()) {
             $this->stop();
         }
+    }
+
+    public function hasChildProcesses(): bool
+    {
+        return !empty($this->childProcessIds);
+    }
+
+    public function hasTasks(): bool
+    {
+        return !empty($this->tasks);
     }
 
     /**
@@ -154,27 +190,66 @@ class Process
     }
 
     /**
+     * Clears buffer
+     */
+    public function clearBuffer(): array
+    {
+        $this->buffer = [];
+        
+        return $this;
+    }
+
+    /**
+     * Gets buffer
+     */
+    public function getBuffer(): array
+    {
+        return $this->buffer;
+    }
+
+    /**
+     * Adds string message to buffer
+     */
+    public function addToBuffer(string $message)
+    {
+        $this->buffer[] = $message;
+        
+        return $this;
+    }
+
+    /**
      * Adds Callable object (task) to the current process 
      *
-     * @param boolean $isCompletable The flag for stopping the processing of child processes
-     * @param boolean $isCompletable The flag for stopping the processing of child processes
+     * @param Callable $task Callable object (task)
+     * @param boolean $numberOfTasks Number of processes to perform task
+     * @param boolean $isExpecting Sets expecting mode to task
      *
-     * @throws Exception When the current process is running or when given incorrect number of tasks
+     * @throws Exception When given incorrect number of tasks
      */
-    public function addTask(Callable $task, int $numberOfTasks = 1)
+    public function addTask(Callable $task, int $numberOfTasks = 1, bool $isExpecting = false)
     {
-        if ($this->isActive) {
-            throw new Exception('');
-        }
-
         if ($numberOfTasks < 1) {
-            throw new Exception('');
+            throw new ProcessException('Given incorrect number of tasks');
         }
 
-        $this->tasks = array_merge(
-            $this->tasks,
-            array_fill(0, $numberOfTasks, $task)
-        );
+        array_push($this->tasks, [
+            'task' => $task,
+            'number_of_tasks' => $numberOfTasks,
+            'is_expecting' => $isExpecting
+        ]);
+    }
+
+    /**
+     * Adds Callable object (task) to the current process 
+     *
+     * @param Callable $task Callable object (task)
+     * @param boolean $numberOfTasks Number of processes to perform task
+     *
+     * @throws Exception When given incorrect number of tasks
+     */
+    public function addExpectingTask(Callable $task, int $numberOfTasks = 1)
+    {
+        $this->addTask($task, $numberOfTasks, true);
     }
 
     /**
