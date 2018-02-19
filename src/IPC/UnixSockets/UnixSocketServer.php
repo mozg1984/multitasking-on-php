@@ -2,6 +2,7 @@
 
 namespace App\IPC\UnixSockets;
 
+use App\IPC\IPCInterface;
 use App\Exceptions\UnixSocketException;
 
 class UnixSocketServer implements IPCInterface
