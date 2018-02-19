@@ -7,12 +7,23 @@ require "{$root}/vendor/autoload.php";
 
 $process = new \App\Process();
 
-$parameters = [
-    'processes_count' => 2,
-    'interval_count' => 40000000
-];
+$socketFile = '/tmp/socket.sock';
 
-$task = function ($parameters) {
+unlink($socketFile);
+
+$unixSocketServer = new \App\IPC\UnixSockets\UnixSocketServer($socketFile, true);
+$communicator = new \App\IPC\Communicator($unixSocketServer);
+
+$communicator->setHandler(function ($message) use ($process) {
+    $message = json_decode($message);
+    $process->addToBuffer($message[0]);
+});
+
+$process->setCommunicator($communicator);
+
+$countPI = function ($parameters) {
+    $parameters['communicator']->open();
+    
     $order = $parameters['order']; // номер процесса 
     $size = $parameters['processes_count']; // кол-во процессов всего 
     $n = $parameters['interval_count']; // кол-во интервалов
@@ -26,10 +37,37 @@ $task = function ($parameters) {
     }
 
     $pi = $h * $sum;
+
+    $parameters['communicator']->transmit((string) $pi);
+    $parameters['communicator']->close();
 };
 
-$task = \App\Process::bindParameters($task, $parameters);
+$unixSocketClient = new \App\IPC\UnixSockets\UnixSocketClient($socketFile, true);
+$communicator = new \App\IPC\Communicator($unixSocketClient);
 
-$process->addTask($task, $parameters['processes_count']);
+$parameters = [
+    'communicator' => $communicator,
+    'processes_count' => 5,
+    'interval_count' => 40000000
+];
+
+$countPI = \App\Process::bindParameters($countPI, $parameters);
+
+$sumPI = function ($parameters) use ($process) {
+    $PI = 3.141592653589793238462643;
+    $pi = 0;
+    $buffer = $process->getBuffer();
+
+    foreach ($buffer as $value) {
+        $pi += (float) $value;
+    }
+
+    echo sprintf("Exact PI = %.16f,\nCounted PI = %.16f,\nError = %.16f\n", $PI, $pi, abs($pi - $PI));
+};
+
+
+$process->addTask($countPI, $parameters['processes_count']);
+
+$process->addExpectingTask($sumPI);
 
 $process->start();
