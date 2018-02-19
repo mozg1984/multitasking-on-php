@@ -1,6 +1,11 @@
 #!/usr/bin/env php
 <?php
 
+/**
+ * Example of calculating the number of pi by using multitasking
+ * (https://ru.wikipedia.org/wiki/Message_Passing_Interface)
+ */
+
 $root = dirname(__DIR__);
 
 require "{$root}/vendor/autoload.php";
@@ -12,6 +17,7 @@ $socketFile = '/tmp/socket.sock';
 unlink($socketFile);
 
 $unixSocketServer = new \App\IPC\UnixSockets\UnixSocketServer($socketFile, true);
+
 $communicator = new \App\IPC\Communicator($unixSocketServer);
 
 $communicator->setHandler(function ($message) use ($process) {
@@ -71,3 +77,11 @@ $process->addTask($countPI, $parameters['processes_count']);
 $process->addExpectingTask($sumPI);
 
 $process->start();
+
+/* 
+Output:
+
+Exact PI = 3.1415926535897931,
+Counted PI = 3.1415926535899099,
+Error = 0.0000000000001168 
+*/
